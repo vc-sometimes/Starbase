@@ -323,14 +323,29 @@ export async function parseRepo(opts = {}) {
     const cloneUrl = _token
       ? `https://x-access-token:${_token}@github.com/${_repo}.git`
       : `https://github.com/${_repo}.git`;
-    execSync(
-      `git clone --depth 1 --filter=blob:none --sparse "${cloneUrl}" "${_cloneDir}"`,
-      { stdio: 'inherit' }
-    );
-    execSync(`git sparse-checkout set ${_sparseDir}`, {
-      cwd: _cloneDir,
-      stdio: 'inherit',
-    });
+    // Redact token from error messages
+    const safeUrl = cloneUrl.replace(/x-access-token:[^@]+@/, 'x-access-token:***@');
+    try {
+      execSync(
+        `git clone --depth 1 --filter=blob:none --sparse "${cloneUrl}" "${_cloneDir}"`,
+        { stdio: 'pipe', timeout: 60000 }
+      );
+    } catch (err) {
+      const stderr = (err.stderr?.toString() || '').replace(/x-access-token:[^@]+@/g, 'x-access-token:***@');
+      console.error(`git clone failed for ${safeUrl}:\n${stderr}`);
+      throw new Error(`git clone failed: ${stderr || err.message}`);
+    }
+    try {
+      execSync(`git sparse-checkout set ${_sparseDir}`, {
+        cwd: _cloneDir,
+        stdio: 'pipe',
+        timeout: 30000,
+      });
+    } catch (err) {
+      const stderr = err.stderr?.toString() || '';
+      console.error(`git sparse-checkout failed:\n${stderr}`);
+      throw new Error(`git sparse-checkout failed: ${stderr || err.message}`);
+    }
   }
 
   const _srcRoot = resolve(_cloneDir, _sparseDir);
