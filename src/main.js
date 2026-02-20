@@ -29,9 +29,10 @@ try {
   });
   console.log(`Loaded repo graph: ${json.meta?.repo} (${nodes.length} nodes, ${links.length} links)`);
 } catch {
-  console.log('No repo-graph.json found, starting empty');
-  nodes = [];
-  links = [];
+  console.log('No repo-graph.json found, using mock data');
+  const data = await import('./data.js');
+  nodes = data.nodes;
+  links = data.links;
 }
 
 const container = document.getElementById('graph');
@@ -1177,6 +1178,12 @@ function dismissLogin() {
 function showConnectScreen() {
   connectOverlay.classList.add('open');
   document.body.classList.add('pre-connect');
+  // Solid bg initially hides mock data. After starfield/bloom init (300ms),
+  // clear data nodes then fade overlay to transparent revealing the starfield.
+  setTimeout(() => {
+    graph.graphData({ nodes: [], links: [] });
+    connectOverlay.classList.add('reveal-starfield');
+  }, 500);
 }
 
 function dismissConnectScreen() {
@@ -1196,16 +1203,6 @@ function showLogin() {
   });
 }
 
-// Load mock data for demo mode (no backend)
-async function loadMockData() {
-  const data = await import('./data.js');
-  const cats = {};
-  data.nodes.forEach((n) => {
-    if (n.category && n.categoryData) cats[n.category] = n.categoryData;
-  });
-  reloadGraph({ nodes: data.nodes, links: data.links, categories: cats, meta: null });
-}
-
 // Initial auth gate — check before showing anything
 (async () => {
   const hash = window.location.hash;
@@ -1220,7 +1217,6 @@ async function loadMockData() {
       currentUser = { authenticated: true, login: 'vc-sometimes', avatar: null };
       renderAuthButton();
       loginOverlay.remove();
-      await loadMockData();
       return;
     }
 
@@ -1240,7 +1236,6 @@ async function loadMockData() {
     currentUser = { authenticated: true, login: 'vc-sometimes', avatar: null };
     renderAuthButton();
     loginOverlay.remove();
-    await loadMockData();
     return;
   }
 

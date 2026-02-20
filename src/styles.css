@@ -1003,14 +1003,19 @@ body {
   position: fixed;
   inset: 0;
   z-index: 4000;
-  background: transparent;
+  background: #030306;
   display: none;
   align-items: center;
   justify-content: center;
+  transition: background 1.2s cubic-bezier(0.4, 0, 0, 1);
 }
 
 #connect-overlay.open {
   display: flex;
+}
+
+#connect-overlay.reveal-starfield {
+  background: transparent;
 }
 
 #connect-overlay.dissolve {
