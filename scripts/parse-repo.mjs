@@ -316,23 +316,20 @@ export async function parseRepo(opts = {}) {
   const _repoSlug = _repo.replace('/', '__');
   const _cloneDir = join(CACHE_DIR, _repoSlug);
 
-  // Clone — use credential helper to pass token without embedding in URL
+  // Clone
   if (!existsSync(join(_cloneDir, '.git'))) {
     mkdirSync(CACHE_DIR, { recursive: true });
     console.log(`Sparse-cloning ${_repo} into ${_cloneDir} ...`);
-    const cloneUrl = `https://github.com/${_repo}.git`;
-    const gitEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
-    // Configure a one-shot credential helper that returns the OAuth token
-    const credentialArgs = _token
-      ? `-c credential.helper="!f() { echo username=x-access-token; echo password=${_token}; }; f"`
-      : '';
+    const cloneUrl = _token
+      ? `https://x-access-token:${_token}@github.com/${_repo}.git`
+      : `https://github.com/${_repo}.git`;
     try {
       execSync(
-        `git ${credentialArgs} clone --depth 1 --filter=blob:none --sparse "${cloneUrl}" "${_cloneDir}"`,
-        { stdio: 'pipe', timeout: 60000, env: gitEnv, shell: '/bin/bash' }
+        `git clone --depth 1 --filter=blob:none --sparse "${cloneUrl}" "${_cloneDir}"`,
+        { stdio: 'pipe', timeout: 60000 }
       );
     } catch (err) {
-      const stderr = (err.stderr?.toString() || err.message).replace(/password=[^\s;]+/g, 'password=***');
+      const stderr = (err.stderr?.toString() || err.message).replace(/x-access-token:[^@\s]+/g, 'x-access-token:***');
       console.error(`git clone failed for ${_repo}:\n${stderr}`);
       throw new Error(`git clone failed: ${stderr}`);
     }
