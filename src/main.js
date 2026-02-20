@@ -568,15 +568,10 @@ function renderAuthButton() {
       authMenu = document.createElement('div');
       authMenu.className = 'auth-menu';
       authMenu.innerHTML = `
-        <button class="auth-menu-item accent" id="menu-visualize">Visualize a repo</button>
         <button class="auth-menu-item" id="menu-logout">Sign out</button>
       `;
       authBar.appendChild(authMenu);
 
-      authMenu.querySelector('#menu-visualize').addEventListener('click', () => {
-        authMenu.classList.remove('open');
-        openRepoSelector();
-      });
       authMenu.querySelector('#menu-logout').addEventListener('click', async () => {
         authMenu.classList.remove('open');
         await fetch('/auth/logout', { method: 'POST' });
