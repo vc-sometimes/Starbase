@@ -346,9 +346,21 @@ export async function parseRepo(opts = {}) {
     }
   }
 
-  const _srcRoot = resolve(_cloneDir, _sparseDir);
+  let _srcRoot = resolve(_cloneDir, _sparseDir);
   if (!existsSync(_srcRoot)) {
-    throw new Error(`Source directory not found: ${_srcRoot}`);
+    // Sparse dir not found — try full checkout from repo root
+    console.log(`Sparse dir "${_sparseDir}" not found, falling back to full checkout...`);
+    try {
+      execSync(`git sparse-checkout disable`, {
+        cwd: _cloneDir,
+        stdio: 'pipe',
+        timeout: 30000,
+      });
+    } catch {}
+    _srcRoot = resolve(_cloneDir);
+    if (!existsSync(_srcRoot)) {
+      throw new Error(`Repository clone directory not found`);
+    }
   }
 
   const allFiles = walk(_srcRoot);
