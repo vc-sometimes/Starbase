@@ -1,10 +1,10 @@
 const CATEGORIES = {
-  core:     { color: [160, 120, 255] },   // soft purple
-  tool:     { color: [80, 200, 220] },     // teal
-  language: { color: [255, 180, 70] },     // warm amber
-  concept:  { color: [100, 220, 160] },    // mint
-  project:  { color: [255, 100, 120] },    // coral
-  resource: { color: [220, 130, 220] },    // orchid
+  core:     { color: '#a078ff', label: 'Core' },
+  tool:     { color: '#50c8dc', label: 'Tools' },
+  language: { color: '#ffb446', label: 'Languages' },
+  concept:  { color: '#64dca0', label: 'Concepts' },
+  project:  { color: '#ff6478', label: 'Projects' },
+  resource: { color: '#dc82dc', label: 'Resources' },
 };
 
 const nodes = [
@@ -195,7 +195,6 @@ links.forEach((l) => {
 
 nodes.forEach((n) => {
   n.connections = connectionCount[n.id] || 0;
-  n.val = 1 + n.connections * 0.5;
   n.categoryData = CATEGORIES[n.category];
 });
 
