@@ -316,35 +316,41 @@ export async function parseRepo(opts = {}) {
   const _repoSlug = _repo.replace('/', '__');
   const _cloneDir = join(CACHE_DIR, _repoSlug);
 
-  // Clone
+  // Clone — pass token via env to keep it out of error messages
   if (!existsSync(join(_cloneDir, '.git'))) {
     mkdirSync(CACHE_DIR, { recursive: true });
     console.log(`Sparse-cloning ${_repo} into ${_cloneDir} ...`);
-    const cloneUrl = _token
-      ? `https://x-access-token:${_token}@github.com/${_repo}.git`
-      : `https://github.com/${_repo}.git`;
-    // Redact token from error messages
-    const safeUrl = cloneUrl.replace(/x-access-token:[^@]+@/, 'x-access-token:***@');
+    const cloneUrl = `https://github.com/${_repo}.git`;
+    const gitEnv = { ...process.env };
+    if (_token) {
+      // Pass auth via http.extraheader so the token never appears in commands/errors
+      const basic = Buffer.from(`x-access-token:${_token}`).toString('base64');
+      gitEnv.GIT_CONFIG_COUNT = '1';
+      gitEnv.GIT_CONFIG_KEY_0 = 'http.https://github.com/.extraheader';
+      gitEnv.GIT_CONFIG_VALUE_0 = `Authorization: Basic ${basic}`;
+      gitEnv.GIT_TERMINAL_PROMPT = '0';
+    }
     try {
       execSync(
         `git clone --depth 1 --filter=blob:none --sparse "${cloneUrl}" "${_cloneDir}"`,
-        { stdio: 'pipe', timeout: 60000 }
+        { stdio: 'pipe', timeout: 60000, env: gitEnv }
       );
     } catch (err) {
-      const stderr = (err.stderr?.toString() || '').replace(/x-access-token:[^@]+@/g, 'x-access-token:***@');
-      console.error(`git clone failed for ${safeUrl}:\n${stderr}`);
-      throw new Error(`git clone failed: ${stderr || err.message}`);
+      const stderr = err.stderr?.toString() || err.message;
+      console.error(`git clone failed for ${_repo}:\n${stderr}`);
+      throw new Error(`git clone failed: ${stderr}`);
     }
     try {
       execSync(`git sparse-checkout set ${_sparseDir}`, {
         cwd: _cloneDir,
         stdio: 'pipe',
         timeout: 30000,
+        env: gitEnv,
       });
     } catch (err) {
-      const stderr = err.stderr?.toString() || '';
+      const stderr = err.stderr?.toString() || err.message;
       console.error(`git sparse-checkout failed:\n${stderr}`);
-      throw new Error(`git sparse-checkout failed: ${stderr || err.message}`);
+      throw new Error(`git sparse-checkout failed: ${stderr}`);
     }
   }
 

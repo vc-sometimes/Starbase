@@ -187,7 +187,9 @@ app.post('/api/parse', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error(`Parse error for ${repoName}:`, err);
-    res.status(500).json({ error: err.message });
+    // Redact any tokens that might have leaked into error messages
+    const safeMsg = (err.message || 'Unknown error').replace(/gho_\w+/g, '***').replace(/x-access-token:[^@\s]+/g, '***');
+    res.status(500).json({ error: safeMsg });
   } finally {
     parseJobs.delete(jobKey);
   }
