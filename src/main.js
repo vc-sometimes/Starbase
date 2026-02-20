@@ -502,6 +502,12 @@ function updateHash(nodeId) {
 
 function loadFromHash() {
   const hash = window.location.hash;
+  if (hash === '#authenticated') {
+    // Just came back from OAuth — clear hash and refresh auth state
+    history.replaceState(null, '', window.location.pathname);
+    checkAuth();
+    return;
+  }
   if (!hash.startsWith('#node=')) return;
   const nodeId = decodeURIComponent(hash.slice(6));
   const node = nodes.find((n) => n.id === nodeId);
@@ -514,8 +520,349 @@ function loadFromHash() {
     }, 2500);
   }
 }
-
 /* ------------------------------------------------------------------ */
+/*  GitHub Auth + Repo selector                                        */
+/* ------------------------------------------------------------------ */
+
+const authBar = document.getElementById('auth-bar');
+const authBtn = document.getElementById('auth-btn');
+const repoOverlay = document.getElementById('repo-overlay');
+const repoSearchInput = document.getElementById('repo-search');
+const repoList = document.getElementById('repo-list');
+const repoSparseInput = document.getElementById('repo-sparse');
+const repoGoBtn = document.getElementById('repo-go');
+const repoCloseBtn = document.getElementById('repo-close');
+const parseOverlay = document.getElementById('parse-overlay');
+const parseText = document.getElementById('parse-text');
+
+let currentUser = null;
+let userRepos = [];
+let selectedRepo = null;
+let authMenu = null;
+
+async function checkAuth() {
+  try {
+    const res = await fetch('/api/me');
+    const data = await res.json();
+    if (data.authenticated) {
+      currentUser = data;
+      renderAuthButton();
+    }
+  } catch {}
+}
+
+function renderAuthButton() {
+  if (currentUser) {
+    authBtn.className = 'auth-btn authenticated';
+    authBtn.innerHTML = `<img class="auth-avatar" src="${currentUser.avatar}" alt="" /> ${currentUser.login}`;
+    // Create dropdown menu
+    if (!authMenu) {
+      authMenu = document.createElement('div');
+      authMenu.className = 'auth-menu';
+      authMenu.innerHTML = `
+        <button class="auth-menu-item accent" id="menu-visualize">Visualize a repo</button>
+        <button class="auth-menu-item" id="menu-logout">Sign out</button>
+      `;
+      authBar.appendChild(authMenu);
+
+      authMenu.querySelector('#menu-visualize').addEventListener('click', () => {
+        authMenu.classList.remove('open');
+        openRepoSelector();
+      });
+      authMenu.querySelector('#menu-logout').addEventListener('click', async () => {
+        authMenu.classList.remove('open');
+        await fetch('/auth/logout', { method: 'POST' });
+        currentUser = null;
+        authBtn.className = 'auth-btn';
+        authBtn.textContent = 'Sign in with GitHub';
+        if (authMenu) { authMenu.remove(); authMenu = null; }
+      });
+    }
+  }
+}
+
+authBtn.addEventListener('click', () => {
+  if (currentUser && authMenu) {
+    authMenu.classList.toggle('open');
+  } else {
+    window.location.href = '/auth/github';
+  }
+});
+
+// Close auth menu on outside click
+document.addEventListener('click', (e) => {
+  if (authMenu && !authBar.contains(e.target)) {
+    authMenu.classList.remove('open');
+  }
+});
+
+// Repo selector
+async function openRepoSelector() {
+  repoOverlay.classList.add('open');
+  repoSearchInput.value = '';
+  selectedRepo = null;
+  repoGoBtn.disabled = true;
+  repoList.innerHTML = '<div class="repo-empty">Loading repositories...</div>';
+
+  try {
+    const res = await fetch('/api/repos');
+    userRepos = await res.json();
+    renderRepoList();
+  } catch (err) {
+    repoList.innerHTML = `<div class="repo-empty">Failed to load repos</div>`;
+  }
+
+  setTimeout(() => repoSearchInput.focus(), 100);
+}
+
+function closeRepoSelector() {
+  repoOverlay.classList.remove('open');
+}
+
+function renderRepoList() {
+  const query = repoSearchInput.value.toLowerCase().trim();
+  let filtered = userRepos;
+  if (query) {
+    filtered = userRepos.filter((r) =>
+      r.full_name.toLowerCase().includes(query) ||
+      (r.description || '').toLowerCase().includes(query)
+    );
+  }
+
+  if (filtered.length === 0) {
+    // Check if query looks like owner/repo
+    if (query.includes('/')) {
+      repoList.innerHTML = `
+        <div class="repo-item active" data-repo="${query}">
+          <div>
+            <div class="repo-item-name">${query}</div>
+            <div class="repo-item-desc">Custom repository</div>
+          </div>
+        </div>
+      `;
+      selectedRepo = query;
+      repoGoBtn.disabled = false;
+    } else {
+      repoList.innerHTML = '<div class="repo-empty">No matching repos — type owner/repo for any repo</div>';
+    }
+    return;
+  }
+
+  repoList.innerHTML = filtered.slice(0, 30).map((r) => `
+    <div class="repo-item${selectedRepo === r.full_name ? ' active' : ''}" data-repo="${r.full_name}">
+      <div>
+        <div class="repo-item-name">${r.full_name}</div>
+        ${r.description ? `<div class="repo-item-desc">${r.description}</div>` : ''}
+      </div>
+      <div class="repo-item-meta">
+        ${r.language ? `<span class="repo-item-lang">${r.language}</span>` : ''}
+        ${r.private ? '<span class="repo-item-private">Private</span>' : ''}
+      </div>
+    </div>
+  `).join('');
+
+  repoList.querySelectorAll('.repo-item').forEach((el) => {
+    el.addEventListener('click', () => {
+      repoList.querySelectorAll('.repo-item').forEach((e) => e.classList.remove('active'));
+      el.classList.add('active');
+      selectedRepo = el.dataset.repo;
+      repoGoBtn.disabled = false;
+      // Auto-detect source dir
+      detectSrcDir(selectedRepo);
+    });
+  });
+}
+
+async function detectSrcDir(repo) {
+  try {
+    const res = await fetch(`/api/detect-src?repo=${encodeURIComponent(repo)}`);
+    const data = await res.json();
+    if (data.sparseDir) repoSparseInput.value = data.sparseDir;
+  } catch {}
+}
+
+repoSearchInput.addEventListener('input', () => {
+  renderRepoList();
+});
+
+repoCloseBtn.addEventListener('click', closeRepoSelector);
+repoOverlay.addEventListener('click', (e) => {
+  if (e.target === repoOverlay) closeRepoSelector();
+});
+
+repoGoBtn.addEventListener('click', async () => {
+  if (!selectedRepo) return;
+  closeRepoSelector();
+  await visualizeRepo(selectedRepo, repoSparseInput.value || 'src');
+});
+
+repoSearchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeRepoSelector();
+  if (e.key === 'Enter' && selectedRepo) {
+    closeRepoSelector();
+    visualizeRepo(selectedRepo, repoSparseInput.value || 'src');
+  }
+});
+
+async function visualizeRepo(repo, sparseDir) {
+  // Show parse overlay
+  parseOverlay.classList.add('open');
+  parseText.textContent = `Cloning ${repo}...`;
+
+  try {
+    const res = await fetch('/api/parse', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ repo, sparseDir }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Parse failed');
+    }
+    const json = await res.json();
+    parseText.textContent = 'Building graph...';
+
+    // Reload graph with new data
+    reloadGraph(json);
+
+    // Update page title
+    document.title = `Starbase — ${repo}`;
+
+    // Brief pause to show the graph building
+    await new Promise((r) => setTimeout(r, 400));
+  } catch (err) {
+    parseText.textContent = `Error: ${err.message}`;
+    await new Promise((r) => setTimeout(r, 2000));
+  } finally {
+    parseOverlay.classList.remove('open');
+  }
+}
+
+function reloadGraph(json) {
+  const categories = json.categories || {};
+  repoMeta = json.meta || null;
+
+  // Reset state
+  closeDetail();
+  clearConstellations();
+  blastNodes = null;
+  highlightedCategory = null;
+  selected = null;
+  hovered = null;
+
+  // Replace nodes + links
+  nodes.length = 0;
+  links.length = 0;
+  json.nodes.forEach((n) => nodes.push(n));
+  json.links.forEach((l) => links.push(l));
+
+  // Recompute connections
+  const connectionCount = {};
+  links.forEach((l) => {
+    const s = l.source.id ?? l.source;
+    const t = l.target.id ?? l.target;
+    connectionCount[s] = (connectionCount[s] || 0) + 1;
+    connectionCount[t] = (connectionCount[t] || 0) + 1;
+  });
+  nodes.forEach((n) => {
+    n.connections = connectionCount[n.id] || 0;
+    n.categoryData = categories[n.category] || { color: '#999999', label: n.category };
+  });
+
+  // Rebuild adjacency
+  for (const k of Object.keys(adj)) delete adj[k];
+  links.forEach((l) => {
+    const s = l.source.id ?? l.source;
+    const t = l.target.id ?? l.target;
+    (adj[s] ??= new Set()).add(t);
+    (adj[t] ??= new Set()).add(s);
+  });
+
+  // Update cluster centers for new categories
+  const newCatKeys = [...new Set(nodes.map((n) => n.category))];
+  for (const k of Object.keys(clusterCenters)) delete clusterCenters[k];
+  newCatKeys.forEach((cat, i) => {
+    const phi = Math.acos(1 - (2 * (i + 0.5)) / newCatKeys.length);
+    const theta = Math.PI * (1 + Math.sqrt(5)) * i;
+    clusterCenters[cat] = {
+      x: Math.sin(phi) * Math.cos(theta) * CLUSTER_RADIUS,
+      y: Math.cos(phi) * CLUSTER_RADIUS * 0.6,
+      z: Math.sin(phi) * Math.sin(theta) * CLUSTER_RADIUS,
+    };
+  });
+
+  // Reload graph data
+  graph.graphData({ nodes: [...nodes], links: [...links] });
+
+  // Rebuild legend
+  const newCategoryCounts = {};
+  nodes.forEach((n) => { newCategoryCounts[n.category] = (newCategoryCounts[n.category] || 0) + 1; });
+  const newCategories = {};
+  nodes.forEach((n) => { newCategories[n.category] = n.categoryData; });
+  legend.innerHTML = Object.entries(newCategories).map(([key, cat]) => `
+    <div class="legend-item" data-cat="${key}">
+      <div class="legend-dot" style="background:${cat.color};"></div>
+      <span class="legend-label">${cat.label}</span>
+      <span class="legend-count">${newCategoryCounts[key] || 0}</span>
+    </div>
+  `).join('');
+  legend.querySelectorAll('.legend-item').forEach((el) => {
+    el.addEventListener('click', () => {
+      const cat = el.dataset.cat;
+      if (highlightedCategory === cat) {
+        highlightedCategory = null;
+        legend.querySelectorAll('.legend-item').forEach((e) => e.classList.remove('active'));
+      } else {
+        highlightedCategory = cat;
+        legend.querySelectorAll('.legend-item').forEach((e) => e.classList.toggle('active', e.dataset.cat === cat));
+      }
+    });
+  });
+
+  // Remove old labels, rebuild them
+  labelSprites.forEach(({ sprite }) => {
+    const scene = graph.scene();
+    if (scene) scene.remove(sprite);
+    if (sprite.material?.map) sprite.material.map.dispose();
+    if (sprite.material) sprite.material.dispose();
+  });
+  labelSprites.length = 0;
+
+  setTimeout(() => {
+    const scene = graph.scene();
+    if (!scene) return;
+    nodes.forEach((node) => {
+      const cvs = document.createElement('canvas');
+      const c = cvs.getContext('2d');
+      cvs.width = 512;
+      cvs.height = 64;
+      c.font = `${node.__isCore ? '600' : '400'} ${node.__isCore ? 28 : 22}px -apple-system, BlinkMacSystemFont, "Inter", sans-serif`;
+      c.fillStyle = '#ffffff';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(node.label, 256, 32);
+      const tex = new THREE.CanvasTexture(cvs);
+      const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false, sizeAttenuation: true });
+      const sprite = new THREE.Sprite(mat);
+      sprite.scale.set(16, 2, 1);
+      scene.add(sprite);
+      node.__label = sprite;
+      node.__labelMat = mat;
+      labelSprites.push({ sprite, node });
+    });
+  }, 500);
+
+  // Fly camera back to overview
+  setTimeout(() => {
+    graph.cameraPosition({ x: 0, y: 30, z: 180 }, { x: 0, y: 0, z: 0 }, 2000);
+  }, 300);
+
+  console.log(`Loaded repo graph: ${json.meta?.repo} (${nodes.length} nodes, ${links.length} links)`);
+}
+
+// Check auth on startup
+checkAuth();
+
 /*  Cmd+K Search palette                                               */
 /* ------------------------------------------------------------------ */
 

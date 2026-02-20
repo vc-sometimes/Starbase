@@ -7,6 +7,41 @@
   </head>
   <body>
     <div id="graph"></div>
+
+    <!-- Auth + Repo selector UI -->
+    <div id="auth-bar">
+      <button id="auth-btn" class="auth-btn">Sign in with GitHub</button>
+    </div>
+
+    <!-- Repo selector overlay -->
+    <div id="repo-overlay">
+      <div id="repo-palette">
+        <div class="repo-palette-header">
+          <span class="repo-palette-title">Select repository</span>
+          <button id="repo-close" class="panel-action-btn">&times;</button>
+        </div>
+        <div class="repo-palette-input-row">
+          <input id="repo-search" type="text" placeholder="Search repos or enter owner/repo..." autocomplete="off" spellcheck="false" />
+        </div>
+        <div id="repo-list"></div>
+        <div class="repo-palette-footer">
+          <div class="repo-sparse-row">
+            <label class="repo-sparse-label">Source dir</label>
+            <input id="repo-sparse" type="text" value="src" placeholder="src" />
+          </div>
+          <button id="repo-go" class="repo-go-btn">Visualize</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Parse progress overlay -->
+    <div id="parse-overlay">
+      <div id="parse-status">
+        <div class="parse-spinner"></div>
+        <div id="parse-text">Cloning repository...</div>
+      </div>
+    </div>
+
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
