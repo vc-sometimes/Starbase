@@ -1468,10 +1468,7 @@ setTimeout(() => {
   }
 }, 1000);
 
-// Start camera closer to see the nebula
-setTimeout(() => {
-  graph.cameraPosition({ x: 0, y: 30, z: 180 }, { x: 0, y: 0, z: 0 }, 2000);
-}, 300);
+// Camera zoom happens in reloadGraph after a repo is connected
 
 /* ------------------------------------------------------------------ */
 /*  Hand gesture control                                               */
