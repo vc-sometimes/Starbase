@@ -2,6 +2,8 @@
 
 Interactive 3D codebase visualizer. Parses a GitHub repository's import graph and renders it as an explorable star nebula using Three.js and force-directed layout.
 
+![Uploading image.png…]()
+
 ## Features
 
 - **3D force graph** — files as stars, imports as connections, clustered by category
