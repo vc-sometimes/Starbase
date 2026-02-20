@@ -316,27 +316,23 @@ export async function parseRepo(opts = {}) {
   const _repoSlug = _repo.replace('/', '__');
   const _cloneDir = join(CACHE_DIR, _repoSlug);
 
-  // Clone — pass token via env to keep it out of error messages
+  // Clone — use credential helper to pass token without embedding in URL
   if (!existsSync(join(_cloneDir, '.git'))) {
     mkdirSync(CACHE_DIR, { recursive: true });
     console.log(`Sparse-cloning ${_repo} into ${_cloneDir} ...`);
     const cloneUrl = `https://github.com/${_repo}.git`;
-    const gitEnv = { ...process.env };
-    if (_token) {
-      // Pass auth via http.extraheader so the token never appears in commands/errors
-      const basic = Buffer.from(`x-access-token:${_token}`).toString('base64');
-      gitEnv.GIT_CONFIG_COUNT = '1';
-      gitEnv.GIT_CONFIG_KEY_0 = 'http.https://github.com/.extraheader';
-      gitEnv.GIT_CONFIG_VALUE_0 = `Authorization: Basic ${basic}`;
-      gitEnv.GIT_TERMINAL_PROMPT = '0';
-    }
+    const gitEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
+    // Configure a one-shot credential helper that returns the OAuth token
+    const credentialArgs = _token
+      ? `-c credential.helper="!f() { echo username=x-access-token; echo password=${_token}; }; f"`
+      : '';
     try {
       execSync(
-        `git clone --depth 1 --filter=blob:none --sparse "${cloneUrl}" "${_cloneDir}"`,
-        { stdio: 'pipe', timeout: 60000, env: gitEnv }
+        `git ${credentialArgs} clone --depth 1 --filter=blob:none --sparse "${cloneUrl}" "${_cloneDir}"`,
+        { stdio: 'pipe', timeout: 60000, env: gitEnv, shell: '/bin/bash' }
       );
     } catch (err) {
-      const stderr = err.stderr?.toString() || err.message;
+      const stderr = (err.stderr?.toString() || err.message).replace(/password=[^\s;]+/g, 'password=***');
       console.error(`git clone failed for ${_repo}:\n${stderr}`);
       throw new Error(`git clone failed: ${stderr}`);
     }
@@ -345,7 +341,6 @@ export async function parseRepo(opts = {}) {
         cwd: _cloneDir,
         stdio: 'pipe',
         timeout: 30000,
-        env: gitEnv,
       });
     } catch (err) {
       const stderr = err.stderr?.toString() || err.message;
