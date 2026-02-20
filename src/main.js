@@ -1178,6 +1178,8 @@ function dismissLogin() {
 function showConnectScreen() {
   connectOverlay.classList.add('open');
   document.body.classList.add('pre-connect');
+  // Clear data nodes but keep the starfield/nebula/bloom scene objects
+  graph.graphData({ nodes: [], links: [] });
 }
 
 function dismissConnectScreen() {
