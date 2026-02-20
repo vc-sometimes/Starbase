@@ -729,10 +729,8 @@ async function visualizeRepo(repo, sparseDir) {
     // Reload graph with new data
     reloadGraph(json);
 
-    // Dismiss connect screen if still showing
-    if (document.getElementById('connect-btn')) {
-      dismissConnectScreen();
-    }
+    // Show legend + shortcuts now that a repo is loaded
+    dismissConnectScreen();
 
     // Update page title
     document.title = `Starbase — ${repo}`;
