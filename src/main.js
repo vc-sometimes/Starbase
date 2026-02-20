@@ -807,6 +807,9 @@ function reloadGraph(json) {
   // Reload graph data
   graph.graphData({ nodes: [...nodes], links: [...links] });
 
+  // Dim background starfield so data nodes stand out
+  if (window.__dimStarfield) window.__dimStarfield(true);
+
   // Rebuild legend
   const newCategoryCounts = {};
   nodes.forEach((n) => { newCategoryCounts[n.category] = (newCategoryCounts[n.category] || 0) + 1; });
@@ -1246,8 +1249,11 @@ setTimeout(() => {
   const scene = graph.scene();
   if (!scene) return;
 
-  // Layer 1: distant dim stars everywhere (the sky) — subtle backdrop
-  const farCount = 12000;
+  // Starfield materials stored for dimming when a repo is loaded
+  const starfieldMats = [];
+
+  // Layer 1: distant stars everywhere (the sky)
+  const farCount = 15000;
   const farPos = new Float32Array(farCount * 3);
   for (let i = 0; i < farCount; i++) {
     const theta = Math.random() * Math.PI * 2;
@@ -1259,17 +1265,19 @@ setTimeout(() => {
   }
   const farGeo = new THREE.BufferGeometry();
   farGeo.setAttribute('position', new THREE.BufferAttribute(farPos, 3));
-  scene.add(new THREE.Points(farGeo, new THREE.PointsMaterial({
-    color: 0x8888aa,
-    size: 0.6,
+  const farMat = new THREE.PointsMaterial({
+    color: 0xccccee,
+    size: 0.8,
     transparent: true,
-    opacity: 0.3,
+    opacity: 0.5,
     sizeAttenuation: true,
     depthWrite: false,
-  })));
+  });
+  scene.add(new THREE.Points(farGeo, farMat));
+  starfieldMats.push({ mat: farMat, full: 0.5, dim: 0.15 });
 
-  // Layer 2: medium stars — dimmed so data nodes stand out
-  const medCount = 3000;
+  // Layer 2: medium stars
+  const medCount = 5000;
   const medPos = new Float32Array(medCount * 3);
   for (let i = 0; i < medCount; i++) {
     const theta = Math.random() * Math.PI * 2;
@@ -1281,17 +1289,19 @@ setTimeout(() => {
   }
   const medGeo = new THREE.BufferGeometry();
   medGeo.setAttribute('position', new THREE.BufferAttribute(medPos, 3));
-  scene.add(new THREE.Points(medGeo, new THREE.PointsMaterial({
-    color: 0x9999bb,
-    size: 0.8,
+  const medMat = new THREE.PointsMaterial({
+    color: 0xddddff,
+    size: 1.2,
     transparent: true,
-    opacity: 0.35,
+    opacity: 0.6,
     sizeAttenuation: true,
     depthWrite: false,
-  })));
+  });
+  scene.add(new THREE.Points(medGeo, medMat));
+  starfieldMats.push({ mat: medMat, full: 0.6, dim: 0.2 });
 
-  // Layer 3: a few bright nearby stars — still dimmer than data nodes
-  const brightCount = 150;
+  // Layer 3: a few bright nearby stars
+  const brightCount = 200;
   const brightPos = new Float32Array(brightCount * 3);
   for (let i = 0; i < brightCount; i++) {
     const theta = Math.random() * Math.PI * 2;
@@ -1303,14 +1313,33 @@ setTimeout(() => {
   }
   const brightGeo = new THREE.BufferGeometry();
   brightGeo.setAttribute('position', new THREE.BufferAttribute(brightPos, 3));
-  scene.add(new THREE.Points(brightGeo, new THREE.PointsMaterial({
-    color: 0xbbbbdd,
-    size: 1.5,
+  const brightMat = new THREE.PointsMaterial({
+    color: 0xffffff,
+    size: 2.5,
     transparent: true,
-    opacity: 0.45,
+    opacity: 0.8,
     sizeAttenuation: true,
     depthWrite: false,
-  })));
+  });
+  scene.add(new THREE.Points(brightGeo, brightMat));
+  starfieldMats.push({ mat: brightMat, full: 0.8, dim: 0.25 });
+
+  // Expose a function to dim/restore the starfield
+  window.__dimStarfield = (dim) => {
+    const duration = 800;
+    const start = performance.now();
+    const from = starfieldMats.map(s => s.mat.opacity);
+    const to = starfieldMats.map(s => dim ? s.dim : s.full);
+    function tick(now) {
+      const t = Math.min((now - start) / duration, 1);
+      const ease = t * (2 - t); // ease-out quad
+      starfieldMats.forEach((s, i) => {
+        s.mat.opacity = from[i] + (to[i] - from[i]) * ease;
+      });
+      if (t < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  };
 
   // Nebula fog around the data cluster center
   const nebColors = [0x221144, 0x112244, 0x1a0a33, 0x0a1133, 0x180828];
