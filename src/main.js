@@ -1026,16 +1026,13 @@ function updateLegendClear() {
   }
 }
 
-// Stop events from leaking through to the 3D canvas behind the legend
-legend.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); _uiClickedAt = Date.now(); });
-legend.addEventListener('mousedown', (e) => { e.stopPropagation(); e.preventDefault(); _uiClickedAt = Date.now(); });
-legend.addEventListener('pointerup', (e) => { e.stopPropagation(); });
-legend.addEventListener('mouseup', (e) => { e.stopPropagation(); });
+// Block ALL pointer/mouse events from reaching the 3D canvas behind the legend
+['pointerdown', 'pointerup', 'pointermove', 'mousedown', 'mouseup', 'click'].forEach((evt) => {
+  legend.addEventListener(evt, (e) => { e.stopPropagation(); _uiClickedAt = Date.now(); });
+});
 
-// Single delegated listener — works after reloadGraph rebuilds legend innerHTML
-legend.addEventListener('click', (e) => {
-  e.stopPropagation();
-  _uiClickedAt = Date.now();
+// Use pointerup for filter toggling (click is unreliable when pointerdown is intercepted)
+legend.addEventListener('pointerup', (e) => {
   const item = e.target.closest('.legend-item');
   if (!item) return;
 
