@@ -971,12 +971,17 @@ document.addEventListener('keydown', (e) => {
     if (searchOverlay.classList.contains('open')) closeSearch();
     else openSearch();
   }
+  if (e.key === 'r' && !e.metaKey && !e.ctrlKey && !e.altKey
+    && document.activeElement?.tagName !== 'INPUT') {
+    const d = 180; // standard overview distance
+    graph.cameraPosition({ x: 0, y: d * 0.17, z: d }, { x: 0, y: 0, z: 0 }, 800);
+  }
 });
 
 // Keyboard shortcut hint
 const hint = document.createElement('div');
 hint.className = 'search-shortcut';
-hint.textContent = '\u2318K to search';
+hint.textContent = '\u2318K search \u00b7 R reset view';
 document.body.appendChild(hint);
 
 /* ------------------------------------------------------------------ */
@@ -1622,12 +1627,13 @@ updateCamera();
 
 const btn = document.createElement('button');
 btn.id = 'hand-toggle';
+btn.className = 'auth-btn';
 btn.textContent = 'Hands [off]';
-document.body.appendChild(btn);
+authBar.appendChild(btn);
 
 const status = document.createElement('div');
 status.id = 'hand-status';
-document.body.appendChild(status);
+authBar.appendChild(status);
 
 btn.addEventListener('click', async () => {
   if (!handActive) {
