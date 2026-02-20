@@ -252,6 +252,37 @@ function detect() {
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
   if (results.landmarks && results.landmarks.length > 0) {
+    // Check for hands-together gesture (both hands, palms close)
+    if (results.landmarks.length >= 2) {
+      const palmCenter = (lm) => ({
+        x: (lm[0].x + lm[5].x + lm[9].x + lm[13].x + lm[17].x) / 5,
+        y: (lm[0].y + lm[5].y + lm[9].y + lm[13].y + lm[17].y) / 5,
+      });
+      const p0 = palmCenter(results.landmarks[0]);
+      const p1 = palmCenter(results.landmarks[1]);
+      const d = dist(p0, p1);
+      if (d < 0.12) {
+        // Draw join indicator
+        const mx = (p0.x + p1.x) / 2 * canvas.width;
+        const my = (p0.y + p1.y) / 2 * canvas.height;
+        ctx.beginPath();
+        ctx.arc(mx, my, 16, 0, Math.PI * 2);
+        ctx.strokeStyle = '#a855f7';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.save();
+        ctx.scale(-1, 1);
+        ctx.fillStyle = '#a855f7';
+        ctx.font = '10px monospace';
+        ctx.fillText('RESET VIEW', -canvas.width + 4, 12);
+        ctx.restore();
+
+        if (onGesture) onGesture({ handsJoined: true, detected: true });
+        requestAnimationFrame(detect);
+        return;
+      }
+    }
+
     for (let i = 0; i < results.landmarks.length; i++) {
       const lm = results.landmarks[i];
       const handedness = results.handednesses?.[i];

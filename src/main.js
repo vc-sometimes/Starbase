@@ -1482,14 +1482,61 @@ const ZOOM_FAR = 0.15;   // hand size when far from cam
 const DIST_MIN = 30;     // closest orbit distance
 const DIST_MAX = 600;    // furthest orbit distance
 
-function handleGesture({ panX, panY, isPinching, handSize, isLeftHand, isRightHand, detected }) {
+let resetCooldown = false;
+let noHandTimer = null;
+const NO_HAND_TIMEOUT = 3000; // auto-off after 3s with no hands
+
+function deactivateHands() {
+  stopHands();
+  handActive = false;
+  handControlling = false;
+  noHandTimer = null;
+  const controls = graph.controls();
+  if (controls) { controls.enabled = true; controls.autoRotate = true; }
+  btn.textContent = 'Hands [off]';
+  btn.classList.remove('active');
+  status.textContent = '';
+
+  // Recenter to standard overview distance (same as pressing R)
+  const d = 180;
+  graph.cameraPosition({ x: 0, y: d * 0.17, z: d }, { x: 0, y: 0, z: 0 }, 800);
+}
+
+function handleGesture({ panX, panY, isPinching, handSize, isLeftHand, isRightHand, detected, handsJoined }) {
+  if (handsJoined && !resetCooldown) {
+    // Hands together — recenter and reset view
+    resetCooldown = true;
+    setTimeout(() => { resetCooldown = false; }, 1500);
+
+    tOrbitX = 0;
+    tOrbitY = 0.3;
+    // Keep current zoom distance
+    tLookX = 0;
+    tLookY = 0;
+    rotAnchorX = null;
+    rotAnchorY = null;
+    panAnchorX = null;
+    panAnchorY = null;
+    return;
+  }
+
   if (!detected) {
     handControlling = false;
     rotAnchorX = null;
     rotAnchorY = null;
     panAnchorX = null;
     panAnchorY = null;
+    // Start auto-off timer when hands disappear
+    if (!noHandTimer && handActive) {
+      noHandTimer = setTimeout(() => deactivateHands(), NO_HAND_TIMEOUT);
+    }
     return;
+  }
+
+  // Hands visible — cancel auto-off timer
+  if (noHandTimer) {
+    clearTimeout(noHandTimer);
+    noHandTimer = null;
   }
 
   handControlling = true;
@@ -1590,21 +1637,15 @@ btn.addEventListener('click', async () => {
       handActive = true;
       btn.textContent = 'Hands [on]';
       btn.classList.add('active');
-      status.textContent = 'Palm to start · L-hand: rotate + closer=zoom · R-pinch: pan';
+      status.textContent = 'Palm to start · L: rotate+zoom · R-pinch: pan · Together: reset';
     } catch (err) {
       console.error(err);
       btn.textContent = 'Hands [error]';
       status.textContent = err.message;
     }
   } else {
-    stopHands();
-    handActive = false;
-    handControlling = false;
-    const controls = graph.controls();
-    if (controls) { controls.enabled = true; controls.autoRotate = true; }
-    btn.textContent = 'Hands [off]';
-    btn.classList.remove('active');
-    status.textContent = '';
+    if (noHandTimer) { clearTimeout(noHandTimer); noHandTimer = null; }
+    deactivateHands();
   }
 });
 
