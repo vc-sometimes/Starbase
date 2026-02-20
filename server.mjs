@@ -22,6 +22,7 @@ if (!CLIENT_ID || !CLIENT_SECRET) {
 }
 
 const app = express();
+app.set('trust proxy', 1);
 app.use(cookieParser(COOKIE_SECRET));
 app.use(express.json());
 
