@@ -1065,3 +1065,9 @@ body {
   color: var(--text-primary);
 }
 
+body.pre-connect #auth-bar,
+body.pre-connect #legend,
+body.pre-connect .search-shortcut {
+  display: none !important;
+}
+

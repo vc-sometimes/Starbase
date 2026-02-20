@@ -1178,10 +1178,16 @@ function dismissLogin() {
 
 function showConnectScreen() {
   requestAnimationFrame(() => connectBtn.classList.add('visible'));
+  document.body.classList.add('pre-connect');
+  // Wait for starfield/bloom to initialize, then clear data nodes
+  setTimeout(() => {
+    graph.graphData({ nodes: [], links: [] });
+  }, 500);
 }
 
 function dismissConnectScreen() {
   connectBtn.classList.add('dissolve');
+  document.body.classList.remove('pre-connect');
   setTimeout(() => connectBtn.remove(), 1200);
 }
 
