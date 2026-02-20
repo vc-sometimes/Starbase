@@ -206,7 +206,7 @@ if (IS_DEV) {
   const distPath = resolve('dist');
   if (existsSync(distPath)) {
     app.use(express.static(distPath));
-    app.get('*', (req, res) => res.sendFile(resolve(distPath, 'index.html')));
+    app.get('/{*splat}', (req, res) => res.sendFile(resolve(distPath, 'index.html')));
   } else {
     console.warn('No dist/ found. Run `npm run build` first for production.');
   }
