@@ -502,12 +502,7 @@ function updateHash(nodeId) {
 
 function loadFromHash() {
   const hash = window.location.hash;
-  if (hash === '#authenticated') {
-    // Just came back from OAuth — clear hash and refresh auth state
-    history.replaceState(null, '', window.location.pathname);
-    checkAuth();
-    return;
-  }
+  if (hash === '#authenticated') return; // handled by login gate
   if (!hash.startsWith('#node=')) return;
   const nodeId = decodeURIComponent(hash.slice(6));
   const node = nodes.find((n) => n.id === nodeId);
@@ -520,6 +515,7 @@ function loadFromHash() {
     }, 2500);
   }
 }
+
 /* ------------------------------------------------------------------ */
 /*  GitHub Auth + Repo selector                                        */
 /* ------------------------------------------------------------------ */
@@ -576,6 +572,7 @@ function renderAuthButton() {
         authBtn.className = 'auth-btn';
         authBtn.textContent = 'Sign in with GitHub';
         if (authMenu) { authMenu.remove(); authMenu = null; }
+        showLogin();
       });
     }
   }
@@ -860,9 +857,9 @@ function reloadGraph(json) {
   console.log(`Loaded repo graph: ${json.meta?.repo} (${nodes.length} nodes, ${links.length} links)`);
 }
 
-// Check auth on startup
-checkAuth();
+// Auth check is handled by the login gate above
 
+/* ------------------------------------------------------------------ */
 /*  Cmd+K Search palette                                               */
 /* ------------------------------------------------------------------ */
 
@@ -1015,31 +1012,141 @@ legend.querySelectorAll('.legend-item').forEach((el) => {
 });
 
 /* ------------------------------------------------------------------ */
-/*  Intro screen — STARBASE title, dissolve in/out                     */
+/*  Login screen — replaces old STARBASE intro                         */
 /* ------------------------------------------------------------------ */
 
-const introOverlay = document.createElement('div');
-introOverlay.id = 'intro-overlay';
-introOverlay.innerHTML = `<div id="intro-title">STARBASE</div>`;
-document.body.appendChild(introOverlay);
+const loginOverlay = document.createElement('div');
+loginOverlay.id = 'login-overlay';
+loginOverlay.innerHTML = `
+  <canvas id="login-stars"></canvas>
+  <div class="login-content">
+    <div class="login-title">STARBASE</div>
+    <div class="login-subtitle">explore your codebase</div>
+    <button class="login-btn" id="login-btn">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      Sign in with GitHub
+    </button>
+  </div>
+`;
+document.body.appendChild(loginOverlay);
 
+/* Login starfield background */
+(function initLoginStars() {
+  const canvas = document.getElementById('login-stars');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  let w, h;
+
+  function resize() {
+    w = window.innerWidth;
+    h = window.innerHeight;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  const STAR_COUNT = 1200;
+  const stars = [];
+  for (let i = 0; i < STAR_COUNT; i++) {
+    stars.push({
+      x: Math.random() * 2 - 1,           // -1..1 normalized
+      y: Math.random() * 2 - 1,
+      z: Math.random(),                     // depth 0..1
+      brightness: 0.06 + Math.random() * 0.25,
+      twinkleSpeed: 1.5 + Math.random() * 3,
+      twinkleOffset: Math.random() * Math.PI * 2,
+    });
+  }
+
+  let raf;
+  function draw(t) {
+    if (!document.getElementById('login-stars')) return; // stop if removed
+    ctx.clearRect(0, 0, w, h);
+
+    const ts = t * 0.001;
+    const cx = w / 2;
+    const cy = h / 2;
+    const drift = ts * 0.3; // slow drift
+
+    for (let i = 0; i < STAR_COUNT; i++) {
+      const s = stars[i];
+      // Parallax drift based on depth
+      const px = ((s.x + drift * (0.2 + s.z * 0.3)) % 2 + 3) % 2 - 1;
+      const py = ((s.y + drift * 0.05 * (s.z - 0.5)) % 2 + 3) % 2 - 1;
+      const sx = cx + px * cx * 1.2;
+      const sy = cy + py * cy * 1.2;
+
+      // Twinkle
+      const twinkle = 0.5 + 0.5 * Math.sin(ts * s.twinkleSpeed + s.twinkleOffset);
+      const alpha = s.brightness * (0.3 + twinkle * 0.5);
+      const r = 0.4 + s.z * 1.0;
+
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+      ctx.fill();
+
+      // Subtle glow on brighter stars
+      if (s.brightness > 0.22 && s.z > 0.7) {
+        ctx.beginPath();
+        ctx.arc(sx, sy, r * 3, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(200, 210, 255, ${alpha * 0.06})`;
+        ctx.fill();
+      }
+    }
+
+    raf = requestAnimationFrame(draw);
+  }
+  raf = requestAnimationFrame(draw);
+})();
+
+document.getElementById('login-btn').addEventListener('click', () => {
+  window.location.href = '/auth/github';
+});
+
+function dismissLogin() {
+  loginOverlay.classList.add('dissolve');
+  setTimeout(() => loginOverlay.remove(), 1500);
+}
+
+function showLogin() {
+  // Re-add if it was removed
+  if (!document.getElementById('login-overlay')) {
+    document.body.appendChild(loginOverlay);
+    loginOverlay.classList.remove('dissolve');
+  }
+  requestAnimationFrame(() => {
+    loginOverlay.classList.add('show-content');
+  });
+}
+
+// Initial auth gate — check before showing anything
 (async () => {
-  const titleEl = document.getElementById('intro-title');
-  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const hash = window.location.hash;
+  const isOAuthReturn = hash === '#authenticated';
 
-  // Dissolve in
-  await wait(100);
-  introOverlay.classList.add('visible');
-  await wait(600);
-  titleEl.classList.add('visible');
+  try {
+    const res = await fetch('/api/me');
+    const data = await res.json();
+    if (data.authenticated) {
+      currentUser = data;
+      renderAuthButton();
+      if (isOAuthReturn) {
+        history.replaceState(null, '', window.location.pathname);
+      }
+      // Authenticated — remove overlay immediately
+      loginOverlay.remove();
+      return;
+    }
+  } catch {}
 
-  // Hold
-  await wait(2500);
-
-  // Dissolve out
-  introOverlay.classList.add('dissolve');
-  await wait(1500);
-  introOverlay.remove();
+  // Not authenticated — show login screen
+  showLogin();
 })();
 
 /* ------------------------------------------------------------------ */
@@ -1278,6 +1385,7 @@ setTimeout(() => {
 setTimeout(() => {
   graph.cameraPosition({ x: 0, y: 30, z: 180 }, { x: 0, y: 0, z: 0 }, 2000);
 }, 300);
+
 
 /* ------------------------------------------------------------------ */
 /*  Load from URL hash on startup                                      */
