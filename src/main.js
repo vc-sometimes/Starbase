@@ -148,7 +148,7 @@ const graph = ForceGraph3D({ controlType: 'orbit' })(container)
   })
   .onBackgroundClick(() => {
     // Ignore if a UI overlay was just clicked
-    if (_uiClickedAt && Date.now() - _uiClickedAt < 100) return;
+    if (_uiClickedAt && Date.now() - _uiClickedAt < 400) return;
     closeDetail();
     playClose();
     clearConstellations();
@@ -1027,8 +1027,10 @@ function updateLegendClear() {
 }
 
 // Stop events from leaking through to the 3D canvas behind the legend
-legend.addEventListener('pointerdown', (e) => { e.stopPropagation(); _uiClickedAt = Date.now(); });
-legend.addEventListener('mousedown', (e) => { e.stopPropagation(); _uiClickedAt = Date.now(); });
+legend.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); _uiClickedAt = Date.now(); });
+legend.addEventListener('mousedown', (e) => { e.stopPropagation(); e.preventDefault(); _uiClickedAt = Date.now(); });
+legend.addEventListener('pointerup', (e) => { e.stopPropagation(); });
+legend.addEventListener('mouseup', (e) => { e.stopPropagation(); });
 
 // Single delegated listener — works after reloadGraph rebuilds legend innerHTML
 legend.addEventListener('click', (e) => {

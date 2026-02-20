@@ -439,6 +439,7 @@ body {
   gap: 1px;
   background: var(--panel-border);
   border: 1px solid var(--panel-border);
+  pointer-events: auto;
 }
 
 .legend-item {
