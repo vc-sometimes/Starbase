@@ -47,6 +47,12 @@ links.forEach((l) => {
 
 let hovered = null;
 let selected = null;
+let _uiClickedAt = 0; // timestamp to prevent UI clicks from triggering backgroundClick
+
+// Any pointerdown outside the graph canvas marks as UI click
+document.addEventListener('pointerdown', (e) => {
+  if (!e.target.closest('#graph')) _uiClickedAt = Date.now();
+}, true);
 
 // Category clustering — tight clusters near center, forming a nebula
 const categoryKeys = [...new Set(nodes.map((n) => n.category))];
@@ -141,6 +147,8 @@ const graph = ForceGraph3D({ controlType: 'orbit' })(container)
     setTimeout(() => playConstellation(), 200);
   })
   .onBackgroundClick(() => {
+    // Ignore if a UI overlay was just clicked
+    if (_uiClickedAt && Date.now() - _uiClickedAt < 100) return;
     closeDetail();
     playClose();
     clearConstellations();
@@ -203,9 +211,11 @@ function flyToSelected(node) {
 
 const panel = document.createElement('div');
 panel.id = 'detail-panel';
+panel.addEventListener('pointerdown', (e) => { e.stopPropagation(); _uiClickedAt = Date.now(); });
 document.body.appendChild(panel);
 
 function openDetail(node) {
+  blastNodes = null; // reset blast radius from previous selection
   const neighbors = adj[node.id] || new Set();
   const neighborNodes = nodes.filter((n) => neighbors.has(n.id))
     .sort((a, b) => (b.connections || 0) - (a.connections || 0));
