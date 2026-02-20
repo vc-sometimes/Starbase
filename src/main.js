@@ -3,6 +3,7 @@ import ForceGraph3D from '3d-force-graph';
 import * as THREE from 'three';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { forceX as d3ForceX, forceY as d3ForceY, forceZ as d3ForceZ, forceManyBody as d3ForceManyBody } from 'd3-force-3d';
+import { initHands, stopHands } from './hands.js';
 
 // ---------------------------------------------------------------------------
 // Load graph data
@@ -1386,6 +1387,174 @@ setTimeout(() => {
   graph.cameraPosition({ x: 0, y: 30, z: 180 }, { x: 0, y: 0, z: 0 }, 2000);
 }, 300);
 
+/* ------------------------------------------------------------------ */
+/*  Hand gesture control                                               */
+/* ------------------------------------------------------------------ */
+
+let handActive = false;
+
+let orbitAngleX = 0;
+let orbitAngleY = 0.3;
+let orbitDist = 180;
+let lookAtX = 0;
+let lookAtY = 0;
+let lookAtZ = 0;
+
+let tOrbitX = 0;
+let tOrbitY = 0.3;
+let tOrbitDist = 180;
+let tLookX = 0;
+let tLookY = 0;
+
+const SM = 0.1;
+let handControlling = false;
+
+// Anchor-based rotation
+let rotAnchorX = null;
+let rotAnchorY = null;
+let rotBaseX = 0;
+let rotBaseY = 0;
+const ROT_SCALE = 3;
+
+// Anchor-based pan
+let panAnchorX = null;
+let panAnchorY = null;
+let panBaseX = 0;
+let panBaseY = 0;
+const PAN_SCALE = 300;
+
+// Proximity zoom: map hand size to orbit distance
+// handSize ~0.15 (far) → zoom out, ~0.5 (close) → zoom in
+const ZOOM_NEAR = 0.45;  // hand size when close to cam
+const ZOOM_FAR = 0.15;   // hand size when far from cam
+const DIST_MIN = 30;     // closest orbit distance
+const DIST_MAX = 600;    // furthest orbit distance
+
+function handleGesture({ panX, panY, isPinching, handSize, isLeftHand, isRightHand, detected }) {
+  if (!detected) {
+    handControlling = false;
+    rotAnchorX = null;
+    rotAnchorY = null;
+    panAnchorX = null;
+    panAnchorY = null;
+    return;
+  }
+
+  handControlling = true;
+  const controls = graph.controls();
+  if (controls) { controls.enabled = false; controls.autoRotate = false; }
+
+  // Left hand: move = rotate, proximity = zoom (always, no pinch needed)
+  if (isLeftHand) {
+    // Rotation via hand movement (anchor-based)
+    if (rotAnchorX === null) {
+      rotAnchorX = panX;
+      rotAnchorY = panY;
+      rotBaseX = tOrbitX;
+      rotBaseY = tOrbitY;
+    }
+    tOrbitX = rotBaseX + (panX - rotAnchorX) * ROT_SCALE;
+    tOrbitY = rotBaseY - (panY - rotAnchorY) * ROT_SCALE;
+    tOrbitY = Math.max(-Math.PI * 0.45, Math.min(Math.PI * 0.45, tOrbitY));
+
+    // Zoom via hand proximity to camera
+    if (handSize !== undefined) {
+      const t = Math.max(0, Math.min(1, (handSize - ZOOM_FAR) / (ZOOM_NEAR - ZOOM_FAR)));
+      tOrbitDist = DIST_MAX - t * (DIST_MAX - DIST_MIN);
+    }
+  }
+
+  // Right hand: pinch+move = pan, open = rotate
+  if (isRightHand) {
+    if (isPinching) {
+      rotAnchorX = null;
+      rotAnchorY = null;
+      if (panAnchorX === null) {
+        panAnchorX = panX;
+        panAnchorY = panY;
+        panBaseX = tLookX;
+        panBaseY = tLookY;
+      }
+      tLookX = panBaseX + (panX - panAnchorX) * PAN_SCALE;
+      tLookY = panBaseY + (panY - panAnchorY) * PAN_SCALE;
+    } else {
+      panAnchorX = null;
+      panAnchorY = null;
+      if (rotAnchorX === null) {
+        rotAnchorX = panX;
+        rotAnchorY = panY;
+        rotBaseX = tOrbitX;
+        rotBaseY = tOrbitY;
+      }
+      tOrbitX = rotBaseX + (panX - rotAnchorX) * ROT_SCALE;
+      tOrbitY = rotBaseY - (panY - rotAnchorY) * ROT_SCALE;
+      tOrbitY = Math.max(-Math.PI * 0.45, Math.min(Math.PI * 0.45, tOrbitY));
+    }
+  }
+}
+
+function updateCamera() {
+  if (handControlling) {
+    orbitAngleX += (tOrbitX - orbitAngleX) * SM;
+    orbitAngleY += (tOrbitY - orbitAngleY) * SM;
+    orbitDist += (tOrbitDist - orbitDist) * SM;
+    lookAtX += (tLookX - lookAtX) * SM;
+    lookAtY += (tLookY - lookAtY) * SM;
+
+    graph.cameraPosition(
+      {
+        x: lookAtX + orbitDist * Math.sin(orbitAngleX) * Math.cos(orbitAngleY),
+        y: lookAtY + orbitDist * Math.sin(orbitAngleY),
+        z: lookAtZ + orbitDist * Math.cos(orbitAngleX) * Math.cos(orbitAngleY),
+      },
+      { x: lookAtX, y: lookAtY, z: lookAtZ }
+    );
+  } else {
+    const controls = graph.controls();
+    if (controls) { controls.enabled = true; controls.autoRotate = true; }
+  }
+  requestAnimationFrame(updateCamera);
+}
+updateCamera();
+
+/* ------------------------------------------------------------------ */
+/*  Toggle button                                                      */
+/* ------------------------------------------------------------------ */
+
+const btn = document.createElement('button');
+btn.id = 'hand-toggle';
+btn.textContent = 'Hands [off]';
+document.body.appendChild(btn);
+
+const status = document.createElement('div');
+status.id = 'hand-status';
+document.body.appendChild(status);
+
+btn.addEventListener('click', async () => {
+  if (!handActive) {
+    btn.textContent = 'Hands [loading]';
+    try {
+      await initHands(handleGesture);
+      handActive = true;
+      btn.textContent = 'Hands [on]';
+      btn.classList.add('active');
+      status.textContent = 'Palm to start · L-hand: rotate + closer=zoom · R-pinch: pan';
+    } catch (err) {
+      console.error(err);
+      btn.textContent = 'Hands [error]';
+      status.textContent = err.message;
+    }
+  } else {
+    stopHands();
+    handActive = false;
+    handControlling = false;
+    const controls = graph.controls();
+    if (controls) { controls.enabled = true; controls.autoRotate = true; }
+    btn.textContent = 'Hands [off]';
+    btn.classList.remove('active');
+    status.textContent = '';
+  }
+});
 
 /* ------------------------------------------------------------------ */
 /*  Load from URL hash on startup                                      */
