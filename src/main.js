@@ -736,6 +736,11 @@ async function visualizeRepo(repo, sparseDir) {
     // Reload graph with new data
     reloadGraph(json);
 
+    // Dismiss connect screen if still showing
+    if (document.getElementById('connect-overlay')) {
+      dismissConnectScreen();
+    }
+
     // Update page title
     document.title = `Starbase — ${repo}`;
 
@@ -1073,6 +1078,19 @@ loginOverlay.innerHTML = `
 `;
 document.body.appendChild(loginOverlay);
 
+/* ------------------------------------------------------------------ */
+/*  Connect screen — shown after auth, before any repo is loaded       */
+/* ------------------------------------------------------------------ */
+
+const connectOverlay = document.createElement('div');
+connectOverlay.id = 'connect-overlay';
+connectOverlay.innerHTML = `<button class="connect-btn" id="connect-btn">Connect a repo</button>`;
+document.body.appendChild(connectOverlay);
+
+document.getElementById('connect-btn').addEventListener('click', () => {
+  openRepoSelector();
+});
+
 /* Login starfield background */
 (function initLoginStars() {
   const canvas = document.getElementById('login-stars');
@@ -1157,6 +1175,17 @@ function dismissLogin() {
   setTimeout(() => loginOverlay.remove(), 1500);
 }
 
+function showConnectScreen() {
+  connectOverlay.classList.add('open');
+  document.body.classList.add('pre-connect');
+}
+
+function dismissConnectScreen() {
+  connectOverlay.classList.add('dissolve');
+  document.body.classList.remove('pre-connect');
+  setTimeout(() => connectOverlay.remove(), 1200);
+}
+
 function showLogin() {
   // Re-add if it was removed
   if (!document.getElementById('login-overlay')) {
@@ -1191,8 +1220,9 @@ function showLogin() {
       if (isOAuthReturn) {
         history.replaceState(null, '', window.location.pathname);
       }
-      // Authenticated — remove overlay immediately
+      // Authenticated — replace login with connect screen
       loginOverlay.remove();
+      showConnectScreen();
       return;
     }
   } catch {
