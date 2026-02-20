@@ -29,10 +29,8 @@ try {
   });
   console.log(`Loaded repo graph: ${json.meta?.repo} (${nodes.length} nodes, ${links.length} links)`);
 } catch {
-  console.log('No repo-graph.json found, using mock data');
-  const data = await import('./data.js');
-  nodes = data.nodes;
-  links = data.links;
+  nodes = [];
+  links = [];
 }
 
 const container = document.getElementById('graph');
@@ -1179,10 +1177,6 @@ function dismissLogin() {
 function showConnectScreen() {
   requestAnimationFrame(() => connectBtn.classList.add('visible'));
   document.body.classList.add('pre-connect');
-  // Wait for starfield/bloom to initialize, then clear data nodes
-  setTimeout(() => {
-    graph.graphData({ nodes: [], links: [] });
-  }, 500);
 }
 
 function dismissConnectScreen() {
