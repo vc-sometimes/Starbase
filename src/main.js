@@ -29,10 +29,9 @@ try {
   });
   console.log(`Loaded repo graph: ${json.meta?.repo} (${nodes.length} nodes, ${links.length} links)`);
 } catch {
-  console.log('No repo-graph.json found, using mock data');
-  const data = await import('./data.js');
-  nodes = data.nodes;
-  links = data.links;
+  console.log('No repo-graph.json found, starting empty');
+  nodes = [];
+  links = [];
 }
 
 const container = document.getElementById('graph');
@@ -1178,8 +1177,6 @@ function dismissLogin() {
 function showConnectScreen() {
   connectOverlay.classList.add('open');
   document.body.classList.add('pre-connect');
-  // Clear data nodes but keep the starfield/nebula/bloom scene objects
-  graph.graphData({ nodes: [], links: [] });
 }
 
 function dismissConnectScreen() {
@@ -1199,6 +1196,16 @@ function showLogin() {
   });
 }
 
+// Load mock data for demo mode (no backend)
+async function loadMockData() {
+  const data = await import('./data.js');
+  const cats = {};
+  data.nodes.forEach((n) => {
+    if (n.category && n.categoryData) cats[n.category] = n.categoryData;
+  });
+  reloadGraph({ nodes: data.nodes, links: data.links, categories: cats, meta: null });
+}
+
 // Initial auth gate — check before showing anything
 (async () => {
   const hash = window.location.hash;
@@ -1213,6 +1220,7 @@ function showLogin() {
       currentUser = { authenticated: true, login: 'vc-sometimes', avatar: null };
       renderAuthButton();
       loginOverlay.remove();
+      await loadMockData();
       return;
     }
 
@@ -1232,6 +1240,7 @@ function showLogin() {
     currentUser = { authenticated: true, login: 'vc-sometimes', avatar: null };
     renderAuthButton();
     loginOverlay.remove();
+    await loadMockData();
     return;
   }
 
