@@ -1020,49 +1020,22 @@ body {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Connect screen (post-auth, pre-repo)                               */
+/*  Repo picker in auth bar                                            */
 /* ------------------------------------------------------------------ */
 
-#connect-btn {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 4000;
-  opacity: 0;
-  transition: opacity 0.8s cubic-bezier(0.4, 0, 0, 1);
+.repo-picker {
+  color: var(--text-tertiary);
+  border-style: dashed;
 }
 
-#connect-btn.visible {
-  opacity: 1;
-}
-
-#connect-btn.dissolve {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 1.2s cubic-bezier(0.4, 0, 0, 1);
-}
-
-.connect-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  background: transparent;
-  border: 1px solid var(--panel-border-strong);
-  color: var(--text-secondary);
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  padding: 12px 28px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.connect-btn:hover {
-  border-color: var(--text-secondary);
+.repo-picker:hover {
   color: var(--text-primary);
+  border-style: solid;
+}
+
+.repo-picker.has-repo {
+  color: var(--text-secondary);
+  border-style: solid;
 }
 
 body.pre-connect #legend,

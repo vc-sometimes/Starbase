@@ -756,6 +756,12 @@ function reloadGraph(json) {
   const categories = json.categories || {};
   repoMeta = json.meta || null;
 
+  // Update repo picker with repo name
+  if (repoMeta?.repo) {
+    repoPicker.textContent = repoMeta.repo;
+    repoPicker.classList.add('has-repo');
+  }
+
   // Reset state
   closeDetail();
   clearConstellations();
@@ -1079,16 +1085,12 @@ document.body.appendChild(loginOverlay);
 /*  Connect screen — shown after auth, before any repo is loaded       */
 /* ------------------------------------------------------------------ */
 
-const connectBtn = document.createElement('button');
-connectBtn.id = 'connect-btn';
-connectBtn.className = 'connect-btn';
-connectBtn.textContent = 'Connect a repo';
-document.body.appendChild(connectBtn);
-
-connectBtn.addEventListener('click', () => {
-  connectBtn.classList.add('dissolve');
-  openRepoSelector();
-});
+// Repo picker button in auth bar (inserted before hand toggle)
+const repoPicker = document.createElement('button');
+repoPicker.id = 'repo-picker';
+repoPicker.className = 'auth-btn repo-picker';
+repoPicker.textContent = 'Connect a repo';
+repoPicker.addEventListener('click', () => openRepoSelector());
 
 /* Login starfield background */
 (function initLoginStars() {
@@ -1175,14 +1177,11 @@ function dismissLogin() {
 }
 
 function showConnectScreen() {
-  requestAnimationFrame(() => connectBtn.classList.add('visible'));
   document.body.classList.add('pre-connect');
 }
 
 function dismissConnectScreen() {
-  connectBtn.classList.add('dissolve');
   document.body.classList.remove('pre-connect');
-  setTimeout(() => connectBtn.remove(), 1200);
 }
 
 function showLogin() {
@@ -1650,6 +1649,8 @@ updateCamera();
 /* ------------------------------------------------------------------ */
 /*  Toggle button                                                      */
 /* ------------------------------------------------------------------ */
+
+authBar.appendChild(repoPicker);
 
 const btn = document.createElement('button');
 btn.id = 'hand-toggle';
