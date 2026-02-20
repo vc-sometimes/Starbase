@@ -737,7 +737,7 @@ async function visualizeRepo(repo, sparseDir) {
     reloadGraph(json);
 
     // Dismiss connect screen if still showing
-    if (document.getElementById('connect-overlay')) {
+    if (document.getElementById('connect-btn')) {
       dismissConnectScreen();
     }
 
@@ -1082,12 +1082,14 @@ document.body.appendChild(loginOverlay);
 /*  Connect screen — shown after auth, before any repo is loaded       */
 /* ------------------------------------------------------------------ */
 
-const connectOverlay = document.createElement('div');
-connectOverlay.id = 'connect-overlay';
-connectOverlay.innerHTML = `<button class="connect-btn" id="connect-btn">Connect a repo</button>`;
-document.body.appendChild(connectOverlay);
+const connectBtn = document.createElement('button');
+connectBtn.id = 'connect-btn';
+connectBtn.className = 'connect-btn';
+connectBtn.textContent = 'Connect a repo';
+document.body.appendChild(connectBtn);
 
-document.getElementById('connect-btn').addEventListener('click', () => {
+connectBtn.addEventListener('click', () => {
+  connectBtn.classList.add('dissolve');
   openRepoSelector();
 });
 
@@ -1176,20 +1178,12 @@ function dismissLogin() {
 }
 
 function showConnectScreen() {
-  connectOverlay.classList.add('open');
-  document.body.classList.add('pre-connect');
-  // Solid bg initially hides mock data. After starfield/bloom init (300ms),
-  // clear data nodes then fade overlay to transparent revealing the starfield.
-  setTimeout(() => {
-    graph.graphData({ nodes: [], links: [] });
-    connectOverlay.classList.add('reveal-starfield');
-  }, 500);
+  requestAnimationFrame(() => connectBtn.classList.add('visible'));
 }
 
 function dismissConnectScreen() {
-  connectOverlay.classList.add('dissolve');
-  document.body.classList.remove('pre-connect');
-  setTimeout(() => connectOverlay.remove(), 1200);
+  connectBtn.classList.add('dissolve');
+  setTimeout(() => connectBtn.remove(), 1200);
 }
 
 function showLogin() {
