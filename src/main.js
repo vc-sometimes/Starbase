@@ -77,27 +77,27 @@ const graph = ForceGraph3D({ controlType: 'orbit' })(container)
   .linkOpacity(0)
   .linkColor(() => 'rgba(0,0,0,0)')
 
-  // Nodes — tiny bright stars, not big blobs
+  // Nodes — prominent colored stars that stand out from the background
   .nodeThreeObject((node) => {
     const isCore = node.connections >= 10;
-    const r = isCore ? 0.7 : 0.15 + Math.min(node.connections, 8) * 0.06;
+    const r = isCore ? 1.2 : 0.35 + Math.min(node.connections, 8) * 0.1;
     const color = new THREE.Color(node.categoryData.color);
     const group = new THREE.Group();
 
-    // Star point
+    // Star point — bright and solid
     const star = new THREE.Mesh(
-      new THREE.SphereGeometry(r, 8, 8),
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: isCore ? 1 : 0.9 })
+      new THREE.SphereGeometry(r, 12, 12),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1.0 })
     );
     group.add(star);
 
-    // Soft glow
+    // Inner glow — visible colored halo
     const glow = new THREE.Mesh(
-      new THREE.SphereGeometry(r * (isCore ? 4 : 2.5), 8, 8),
+      new THREE.SphereGeometry(r * (isCore ? 4 : 3), 12, 12),
       new THREE.MeshBasicMaterial({
         color,
         transparent: true,
-        opacity: isCore ? 0.06 : 0.025,
+        opacity: isCore ? 0.12 : 0.06,
         side: THREE.BackSide,
         depthWrite: false,
       })
@@ -1246,11 +1246,10 @@ setTimeout(() => {
   const scene = graph.scene();
   if (!scene) return;
 
-  // Layer 1: distant dim stars everywhere (the sky)
-  const farCount = 15000;
+  // Layer 1: distant dim stars everywhere (the sky) — subtle backdrop
+  const farCount = 12000;
   const farPos = new Float32Array(farCount * 3);
   for (let i = 0; i < farCount; i++) {
-    // Spread on a huge sphere shell so they surround you
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
     const dist = 800 + Math.random() * 3000;
@@ -1261,16 +1260,16 @@ setTimeout(() => {
   const farGeo = new THREE.BufferGeometry();
   farGeo.setAttribute('position', new THREE.BufferAttribute(farPos, 3));
   scene.add(new THREE.Points(farGeo, new THREE.PointsMaterial({
-    color: 0xccccee,
-    size: 0.8,
+    color: 0x8888aa,
+    size: 0.6,
     transparent: true,
-    opacity: 0.5,
+    opacity: 0.3,
     sizeAttenuation: true,
     depthWrite: false,
   })));
 
-  // Layer 2: medium stars — closer, slightly brighter
-  const medCount = 5000;
+  // Layer 2: medium stars — dimmed so data nodes stand out
+  const medCount = 3000;
   const medPos = new Float32Array(medCount * 3);
   for (let i = 0; i < medCount; i++) {
     const theta = Math.random() * Math.PI * 2;
@@ -1283,16 +1282,16 @@ setTimeout(() => {
   const medGeo = new THREE.BufferGeometry();
   medGeo.setAttribute('position', new THREE.BufferAttribute(medPos, 3));
   scene.add(new THREE.Points(medGeo, new THREE.PointsMaterial({
-    color: 0xddddff,
-    size: 1.2,
+    color: 0x9999bb,
+    size: 0.8,
     transparent: true,
-    opacity: 0.6,
+    opacity: 0.35,
     sizeAttenuation: true,
     depthWrite: false,
   })));
 
-  // Layer 3: a few bright nearby stars (scattered, not near the nebula center)
-  const brightCount = 200;
+  // Layer 3: a few bright nearby stars — still dimmer than data nodes
+  const brightCount = 150;
   const brightPos = new Float32Array(brightCount * 3);
   for (let i = 0; i < brightCount; i++) {
     const theta = Math.random() * Math.PI * 2;
@@ -1305,10 +1304,10 @@ setTimeout(() => {
   const brightGeo = new THREE.BufferGeometry();
   brightGeo.setAttribute('position', new THREE.BufferAttribute(brightPos, 3));
   scene.add(new THREE.Points(brightGeo, new THREE.PointsMaterial({
-    color: 0xffffff,
-    size: 2.5,
+    color: 0xbbbbdd,
+    size: 1.5,
     transparent: true,
-    opacity: 0.8,
+    opacity: 0.45,
     sizeAttenuation: true,
     depthWrite: false,
   })));
@@ -1333,7 +1332,7 @@ setTimeout(() => {
   try {
     const bloomPass = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
-      1.8, 0.6, 0.5
+      2.2, 0.5, 0.4
     );
     graph.postProcessingComposition().passes.push(bloomPass);
   } catch (e) {
