@@ -88,13 +88,14 @@ async function ghFetch(path, token) {
 }
 
 app.get('/api/me', async (req, res) => {
+  const oauthConfigured = !!(CLIENT_ID && CLIENT_SECRET);
   const token = getToken(req);
-  if (!token) return res.json({ authenticated: false });
+  if (!token) return res.json({ authenticated: false, oauthConfigured });
   try {
     const user = await ghFetch('/user', token);
-    res.json({ authenticated: true, login: user.login, avatar: user.avatar_url, name: user.name });
+    res.json({ authenticated: true, oauthConfigured, login: user.login, avatar: user.avatar_url, name: user.name });
   } catch {
-    res.json({ authenticated: false });
+    res.json({ authenticated: false, oauthConfigured });
   }
 });
 

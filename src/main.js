@@ -561,7 +561,10 @@ async function checkAuth() {
 function renderAuthButton() {
   if (currentUser) {
     authBtn.className = 'auth-btn authenticated';
-    authBtn.innerHTML = `<img class="auth-avatar" src="${currentUser.avatar}" alt="" /> ${currentUser.login}`;
+    const avatarHtml = currentUser.avatar
+      ? `<img class="auth-avatar" src="${currentUser.avatar}" alt="" />`
+      : `<svg class="auth-avatar" width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>`;
+    authBtn.innerHTML = `${avatarHtml} ${currentUser.login}`;
     // Create dropdown menu
     if (!authMenu) {
       authMenu = document.createElement('div');
@@ -754,7 +757,7 @@ function reloadGraph(json) {
   closeDetail();
   clearConstellations();
   blastNodes = null;
-  highlightedCategory = null;
+  highlightedCategories.clear();
   selected = null;
   hovered = null;
 
@@ -814,18 +817,8 @@ function reloadGraph(json) {
       <span class="legend-count">${newCategoryCounts[key] || 0}</span>
     </div>
   `).join('');
-  legend.querySelectorAll('.legend-item').forEach((el) => {
-    el.addEventListener('click', () => {
-      const cat = el.dataset.cat;
-      if (highlightedCategory === cat) {
-        highlightedCategory = null;
-        legend.querySelectorAll('.legend-item').forEach((e) => e.classList.remove('active'));
-      } else {
-        highlightedCategory = cat;
-        legend.querySelectorAll('.legend-item').forEach((e) => e.classList.toggle('active', e.dataset.cat === cat));
-      }
-    });
-  });
+  // Event delegation on legend handles clicks — no per-item listeners needed
+  updateLegendClear();
 
   // Remove old labels, rebuild them
   labelSprites.forEach(({ sprite }) => {
@@ -1007,19 +1000,53 @@ legend.innerHTML = Object.entries(categories).map(([key, cat]) => `
 `).join('');
 document.body.appendChild(legend);
 
-let highlightedCategory = null;
+let highlightedCategories = new Set();
 
-legend.querySelectorAll('.legend-item').forEach((el) => {
-  el.addEventListener('click', () => {
-    const cat = el.dataset.cat;
-    if (highlightedCategory === cat) {
-      highlightedCategory = null;
-      legend.querySelectorAll('.legend-item').forEach((e) => e.classList.remove('active'));
-    } else {
-      highlightedCategory = cat;
-      legend.querySelectorAll('.legend-item').forEach((e) => e.classList.toggle('active', e.dataset.cat === cat));
+function updateLegendClear() {
+  const existing = legend.querySelector('.legend-clear');
+  if (highlightedCategories.size > 0) {
+    if (!existing) {
+      const clearEl = document.createElement('div');
+      clearEl.className = 'legend-item legend-clear';
+      clearEl.innerHTML = '<span class="legend-label">CLEAR ALL</span><span class="legend-clear-x">\u00d7</span>';
+      legend.prepend(clearEl);
     }
+  } else if (existing) {
+    existing.remove();
+  }
+}
+
+// Stop events from leaking through to the 3D canvas behind the legend
+legend.addEventListener('pointerdown', (e) => { e.stopPropagation(); _uiClickedAt = Date.now(); });
+legend.addEventListener('mousedown', (e) => { e.stopPropagation(); _uiClickedAt = Date.now(); });
+
+// Single delegated listener — works after reloadGraph rebuilds legend innerHTML
+legend.addEventListener('click', (e) => {
+  e.stopPropagation();
+  _uiClickedAt = Date.now();
+  const item = e.target.closest('.legend-item');
+  if (!item) return;
+
+  // Handle "CLEAR ALL"
+  if (item.classList.contains('legend-clear')) {
+    highlightedCategories.clear();
+    legend.querySelectorAll('.legend-item').forEach((el) => el.classList.remove('active'));
+    updateLegendClear();
+    return;
+  }
+
+  const cat = item.dataset.cat;
+  if (!cat) return;
+
+  if (highlightedCategories.has(cat)) {
+    highlightedCategories.delete(cat);
+  } else {
+    highlightedCategories.add(cat);
+  }
+  legend.querySelectorAll('.legend-item[data-cat]').forEach((el) => {
+    el.classList.toggle('active', highlightedCategories.has(el.dataset.cat));
   });
+  updateLegendClear();
 });
 
 /* ------------------------------------------------------------------ */
@@ -1144,6 +1171,15 @@ function showLogin() {
   try {
     const res = await fetch('/api/me');
     const data = await res.json();
+
+    // If OAuth isn't configured, fake a demo user and skip login
+    if (!data.oauthConfigured) {
+      currentUser = { authenticated: true, login: 'vc-sometimes', avatar: null };
+      renderAuthButton();
+      loginOverlay.remove();
+      return;
+    }
+
     if (data.authenticated) {
       currentUser = data;
       renderAuthButton();
@@ -1154,9 +1190,15 @@ function showLogin() {
       loginOverlay.remove();
       return;
     }
-  } catch {}
+  } catch {
+    // Server not reachable (e.g. running with plain vite dev) — demo mode
+    currentUser = { authenticated: true, login: 'vc-sometimes', avatar: null };
+    renderAuthButton();
+    loginOverlay.remove();
+    return;
+  }
 
-  // Not authenticated — show login screen
+  // Not authenticated but OAuth is configured — show login screen
   showLogin();
 })();
 
@@ -1281,7 +1323,7 @@ graph.onEngineTick(() => {
     if (!n.__star) return;
     const isH = active && n.id === active.id;
     const isN = nb.has(n.id);
-    const catDim = highlightedCategory && n.category !== highlightedCategory;
+    const catDim = highlightedCategories.size > 0 && !highlightedCategories.has(n.category);
     const dim = (active && !isH && !isN) || catDim;
 
     const sMat = n.__star.material;
