@@ -1175,6 +1175,16 @@ function showConnectScreen() {
 
 function dismissConnectScreen() {
   document.body.classList.remove('pre-connect');
+  // Re-trigger entrance animation so legend/shortcuts are noticeable
+  legend.style.animation = 'none';
+  legend.offsetHeight; // force reflow
+  legend.style.animation = '';
+  const shortcut = document.querySelector('.search-shortcut');
+  if (shortcut) {
+    shortcut.style.animation = 'none';
+    shortcut.offsetHeight;
+    shortcut.style.animation = '';
+  }
 }
 
 function showLogin() {
